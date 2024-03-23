@@ -9,6 +9,15 @@ import torch.nn.functional as F
 
 
 class Latent_AE_cnn_small(nn.Module):
+    """定义一个名为 Latent_AE_cnn_small 的 PyTorch 模型类，继承自 nn.Module。
+    __init__方法是构造函数，接收输入数据的维度 in_dim 和时间步长 time_step(默认为 1000) 作为参数。
+    super().__init__() 调用基类 nn.Module 的构造函数。
+    这个代码实现了一个小型的卷积自编码器模型，用于将输入数据编码为潜在表示，并从潜在表示重构出原始数据。
+    模型包含四个编码层和四个解码层，每层由卷积、归一化和激活函数等操作组成。
+    在编码和解码过程中，还添加了一些噪声来增强模型的鲁棒性。此外，代码还提供了 encode 和 decode 方法，
+    用于分别执行编码和解码过程。
+    
+    """
     def __init__(
             self,
             in_dim,
@@ -17,6 +26,11 @@ class Latent_AE_cnn_small(nn.Module):
         super().__init__()
 
         # self.enc1 = nn.Sequential(nn.Conv1d(1, 10, 3, stride=1),nn.LeakyReLU(),nn.Conv1d(1, 10, 3, stride=1),)
+        
+        # 初始化一些模型参数，包括输入维度 in_dim,
+        # 下采样率 fold_rate, 卷积核大小 kernal_size,
+        # 编码器各层通道数 channel_list 和解码器各层通道数 channel_list_dec。
+        # 同时计算实际输入维度 real_input_dim, 以确保输入数据的长度可被 fold_rate 的 4 次方整除。
         self.in_dim = in_dim
         self.fold_rate = 3
         self.kernal_size = 3
@@ -25,7 +39,9 @@ class Latent_AE_cnn_small(nn.Module):
         self.real_input_dim = (
                 int(in_dim / self.fold_rate ** 4 + 1) * self.fold_rate ** 4
         )
-
+        ### 4 layers convolutional encoder
+        # 定义编码器的四个层，每层由 nn.Sequential 模块组成，包含 InstanceNorm1d、Conv1d、LeakyReLU
+        # 和最大池化操作。编码器的作用是将输入数据编码为潜在表示。
         self.enc1 = nn.Sequential(
             nn.InstanceNorm1d(self.real_input_dim),
             nn.Conv1d(1, self.channel_list[0], self.kernal_size, stride=1, padding=1),
@@ -61,7 +77,11 @@ class Latent_AE_cnn_small(nn.Module):
             nn.Conv1d(self.channel_list[2], self.channel_list[3], self.kernal_size, stride=self.fold_rate, padding=0),
             nn.Tanh(),
         )
-
+        
+        
+        ### decoder
+        # 定义解码器的四个层，每层由 nn.Sequential 模块组成，包含 LeakyReLU、InstanceNorm1d、ConvTranspose1d
+        # 和 Conv1d 操作。解码器的作用是将潜在表示解码为输出数据。
         self.dec1 = nn.Sequential(
             nn.LeakyReLU(),
             nn.InstanceNorm1d(self.real_input_dim // self.fold_rate ** 4),
@@ -109,6 +129,11 @@ class Latent_AE_cnn_small(nn.Module):
         # self.time_encode = nn.Embedding(time_step, self.real_input_dim)
 
     def forward(self, input):
+        ## forward 方法定义了模型的前向传播过程。首先对输入数据添加一些小噪声，并检查输入维度是否为 2D,
+        # 如果不是则将其调整为 3D。接着，将输入数据与填充的零张量连接，以匹配 real_input_dim。
+        # 然后，依次通过编码器的四个层编码输入数据，得到潜在表示 emb_enc4。
+        # 在 emb_enc4 上添加噪声并进行裁剪。最后，通过解码器的四个层解码 emb_enc4,
+        # 得到输出数据 emb_dec4, 并将其 reshape 为原始形状返回
         input += torch.randn(input.shape).to(input.device) * 0.001
         input_shape = input.shape
         if len(input.size()) == 2:
@@ -144,6 +169,7 @@ class Latent_AE_cnn_small(nn.Module):
         return emb_dec4.reshape(input_shape)
 
     def encode(self, input):
+    ### encode 方法用于编码输入数据，返回潜在表示 emb_enc4。预处理输入数据的步骤与 forward 方法相同。
         if len(input.size()) == 2:
             input = input.view(input.size(0), 1, -1)
 
@@ -162,6 +188,7 @@ class Latent_AE_cnn_small(nn.Module):
         return emb_enc4
 
     def decode(self, emb_enc4):
+    ### decode 方法用于解码潜在表示 emb_enc4, 返回输出数据。解码过程通过解码器的四个层完成。
         emb_dec1 = self.dec1(emb_enc4)
         emb_dec2 = self.dec2(emb_dec1)
         emb_dec3 = self.dec3(emb_dec2)

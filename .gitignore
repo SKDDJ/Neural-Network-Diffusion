@@ -11,6 +11,13 @@ wandb/
 **/checkpoint/
 **/__pycache__/
 
+test/
+param_data/*
+outputs/*
+data/*
+
+
+
 # Created by https://www.toptal.com/developers/gitignore/api/macos
 # Edit at https://www.toptal.com/developers/gitignore?templates=macos
 

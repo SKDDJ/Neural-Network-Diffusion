@@ -8,16 +8,16 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-
+# 定义不同的标准化函数
 norm_funcs = {
-    'none': nn.Identity,
-    'batch': nn.BatchNorm1d,
-    'instance': nn.InstanceNorm1d,
-    'group': nn.GroupNorm,
-    'layernorm': nn.LayerNorm,
+    'none': nn.Identity,  # 不进行任何操作
+    'batch': nn.BatchNorm1d,  # 执行1D批标准化
+    'instance': nn.InstanceNorm1d,  # 执行1D实例标准化
+    'group': nn.GroupNorm,  # 执行组标准化
+    'layernorm': nn.LayerNorm,  # 执行层标准化
 }
 
-func = 'instance'
+func = 'instance'  # 默认使用实例标准化
 
 def build_norm(in_dim: int, in_channel: int):
     if func == 'group':
@@ -33,9 +33,9 @@ def build_norm(in_dim: int, in_channel: int):
 class ODEncoder(nn.Module):
     def __init__(self, in_dim_list, fold_rate, kernel_size, channel_list):
         super(ODEncoder, self).__init__()
-        self.in_dim_list = in_dim_list
-        self.fold_rate = fold_rate
-        self.kernel_size = kernel_size
+        self.in_dim_list = in_dim_list  # 输入维度列表
+        self.fold_rate = fold_rate  # 折叠率，用于设定卷积层的步长
+        self.kernel_size = kernel_size  # 卷积核大小
 
         # insert the first layer
         channel_list = [channel_list[0]] + channel_list
@@ -211,8 +211,12 @@ class medium(ODEncoder2Decoder):
         dec_channel_list = [4, 256, 256, 8]
         super(medium, self).__init__(in_dim, kernel_size, fold_rate, input_noise_factor, latent_noise_factor, enc_channel_list, dec_channel_list, norm_func)
 
-
+### 以及一个基于时间步编码的更复杂模型AE_CNN_bottleneck
 class AE_CNN_bottleneck(nn.Module):
+    ### in_dim 是输入数据的维度。
+    # in_channel 是输入数据的通道数。
+    # time_step 是时间步长，默认为 1000。
+    # dec 是一个可选的解码器模块。
     def __init__(
             self,
             in_dim,
@@ -314,10 +318,15 @@ class AE_CNN_bottleneck(nn.Module):
             build_norm(self.real_input_dim // self.fold_rate, self.channel_list[0]),
             nn.Conv1d(self.channel_list[0], in_channel, self.kernal_size, stride=1, padding=1),
         )
-
+        ## 一个嵌入层，用于将时间步长编码为向量表示
         self.time_encode = nn.Embedding(time_step, self.real_input_dim)
 
     def forward(self, input, time, cond=None):
+        #forward 方法定义了模型的前向传播过程。
+        # 首先将输入数据 input 和时间步长编码 time_info 进行拼接。
+        # 然后依次通过编码器模块 self.enc1、self.enc2、self.enc3 和 self.enc4 进行编码。
+        # 接着依次通过解码器模块 self.dec1、self.dec2、self.dec3 和 self.dec4 进行解码，并与编码器的输出进行残差连接。
+        # 最后返回解码器的输出 emb_dec4。
         assert input.shape[1] * input.shape[2] == self.in_dim
 
         input_shape = input.shape

@@ -8,8 +8,13 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+### 这段代码实现了一个基于卷积编码器-解码器架构的神经网络模型,用于对一维序列数据(如时间序列)进行编码和重构。
 # one dimension convolutional encoder
 class ODEncoder(nn.Module):
+    ### 定义了一个名为 ODEncoder 的卷积编码器类。在__init__方法中，初始化了一些参数，
+    # 如输入维度列表 in_dim_list、下采样率 fold_rate、卷积核大小 kernel_size 和
+    # 编码器各层的通道数 channel_list。然后，根据层数构建了一系列编码层，
+    # 每一层由 build_layer 方法构造，并存储在 nn.ModuleList 中。
     def __init__(self, in_dim_list, fold_rate, kernel_size, channel_list):
         super(ODEncoder, self).__init__()
         self.in_dim_list = in_dim_list
@@ -32,7 +37,9 @@ class ODEncoder(nn.Module):
             encoder.append(layer)
         self.encoder = encoder
 
-
+    ### build_layer 方法构建单个编码层，包括 LeakyReLU 激活函数、InstanceNorm1d 归一化层、
+    # Conv1d 卷积层等操作。如果是编码器的第一层，则使用 nn.Identity() 代替 LeakyReLU 激活函数。
+    # 如果是最后一层，则在最后使用 Tanh 激活函数。
     def build_layer(self, in_dim, kernel_size, fold_rate, input_channel, output_channel, last=False, if_start=False):
         # first: if is the first layer of encoder
         layer = nn.Sequential(
@@ -46,7 +53,7 @@ class ODEncoder(nn.Module):
         )
         return layer
 
-
+    ### forward 方法定义了编码器的前向传播过程，将输入 x 依次通过所有编码层。
     def forward(self, x, **kwargs):
         for i, module in enumerate(self.encoder):
             x = module(x)
@@ -54,6 +61,8 @@ class ODEncoder(nn.Module):
 
 
 class ODDecoder(nn.Module):
+    ### 定义了一个名为 ODDecoder 的卷积解码器类。结构与 ODEncoder 类似，
+    # 不过通道数列表 channel_list 在最后追加了一个 1, 表示输出通道数为 1 (对应一维序列数据)。
     def __init__(self, in_dim_list, fold_rate, kernel_size, channel_list):
         super(ODDecoder, self).__init__()
         self.in_dim_list = in_dim_list
@@ -75,7 +84,8 @@ class ODDecoder(nn.Module):
             decoder.append(layer)
         self.decoder = decoder
 
-
+    ### build_layer 方法构建单个解码层，包括 LeakyReLU 激活函数、InstanceNorm1d 归一化层、
+    # ConvTranspose1d 上采样层和 Conv1d 卷积层等操作。
     def build_layer(self, in_dim, kernel_size, fold_rate, input_channel, output_channel, last):
         layer = nn.Sequential(
             nn.LeakyReLU(),
@@ -86,13 +96,16 @@ class ODDecoder(nn.Module):
             nn.Conv1d(input_channel, output_channel, kernel_size, stride=1, padding=fold_rate if last else fold_rate - 1)
         )
         return layer
-
+    ### forward 方法定义了解码器的前向传播过程，将输入 x 依次通过所有解码层。
     def forward(self, x, **kwargs):
         for i, module in enumerate(self.decoder):
             x = module(x)
         return x
 
 class ODEncoder2Decoder(nn.Module):
+    ### ODEncoder2Decoder 类是一个包装类，将编码器和解码器集成在一起。它定义了编码 (encode)、解码 (decode)、调整输入 (adjust_input)、
+    # 调整输出 (adjust_output)、添加噪声 (add_noise) 和前向传播 (forward) 等方法。
+    # 在 forward 方法中，先对输入数据添加噪声，然后编码、在潜在空间添加噪声、裁剪、解码，最终输出重构的数据。
     def __init__(self, in_dim, kernel_size=3, fold_rate=3, input_noise_factor=0.001, latent_noise_factor=0.1, enc_channel_list=None, dec_channel_list=None):
         super(ODEncoder2Decoder, self).__init__()
         self.in_dim = in_dim
@@ -168,7 +181,9 @@ class ODEncoder2Decoder(nn.Module):
         x = self.decode(x)
         return x
 
-
+### small 和 medium 类分别定义了两种不同配置的模型，继承自 ODEncoder2Decoder 类。
+# 它们在初始化时指定了不同的下采样率 fold_rate、卷积核大小 kernel_size、
+# 编码器通道数列表 enc_channel_list 和解码器通道数列表 dec_channel_list。
 class small(ODEncoder2Decoder):
     def __init__(self, in_dim, input_noise_factor, latent_noise_factor):
         fold_rate = 3
@@ -188,3 +203,8 @@ class medium(ODEncoder2Decoder):
 
 if __name__ == '__main__':
     model = small(2048, 0.1, 0.1)
+    
+### 如果直接运行这个脚本，将实例化一个 small 模型，输入维度为 2048, 输入噪声系数为 0.1, 潜在空间噪声系数为 0.1。
+# 总的来说，这段代码实现了一个基于卷积编码器 - 解码器架构的神经网络模型，用于对一维序列数据进行编码和重构。模型包括一个编码器和一个解码器，
+# 分别由多个卷积层和上采样层组成。在编码和解码过程中，还引入了噪声和裁剪操作，以增强模型的鲁棒性和泛化能力。此外，
+# 代码还定义了两种不同配置的模型 (small 和 medium), 方便根据实际需求进行选择和调整。
